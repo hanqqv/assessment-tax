@@ -5,6 +5,7 @@ package postgres
 import (
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/hanqqv/assessment-tax/tax"
 	"github.com/stretchr/testify/assert"
 )
@@ -661,4 +662,40 @@ func TestCalculateTax(t *testing.T) {
 			assert.Equal(t, tt.wantTax, got, "expected tax %v but got %v", tt.wantTax, got)
 		})
 	}
+}
+func TestSettingPersonalDeduction(t *testing.T) {
+	t.Run("Given deduction amount to update SettingPersonalDeduction Success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		assert.NoError(t, err, "an error was not expected when opening a stub database connection")
+		defer db.Close()
+
+		p := &Postgres{DB: db}
+
+		expectedDeduction := 100000.0
+
+		mock.ExpectQuery("UPDATE deductions_setting SET amount = \\$1 WHERE allowance_type = \\$2 RETURNING amount").
+			WithArgs(100000.0, "personal").
+			WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(expectedDeduction))
+
+		setting := tax.Setting{Amount: 100000.0}
+		deduction, err := p.SettingPersonalDeduction(setting)
+
+		assert.NoError(t, err, "SettingPersonalDeduction returned an error: %v", err)
+		assert.Equal(t, expectedDeduction, deduction, "SettingPersonalDeduction returned incorrect deduction: got %v want %v", deduction, expectedDeduction)
+	})
+	t.Run("Given deduction amount to update SettingPersonalDeduction Error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		assert.NoError(t, err, "an error was not expected when opening a stub database connection")
+		defer db.Close()
+
+		p := &Postgres{DB: db}
+
+		mock.ExpectQuery("UPDATE deductions_setting SET amount = \\$1 WHERE allowance_type = \\$2 RETURNING amount").
+			WithArgs(5000.0, "personal").
+			WillReturnError(err)
+
+		setting := tax.Setting{Amount: 5000.0}
+		_, gotErr := p.SettingPersonalDeduction(setting)
+		assert.Error(t, gotErr, "SettingPersonalDeduction did not return an error")
+	})
 }
