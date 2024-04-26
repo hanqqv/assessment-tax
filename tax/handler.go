@@ -135,7 +135,7 @@ func (h *Handler) CalculateTaxCSVHandler(c echo.Context) error {
 			Tax:         tax.Tax,
 		})
 	}
-	return c.JSON(http.StatusOK, taxResponseCSV)
+	return c.JSON(http.StatusOK, map[string]interface{}{"taxes": taxResponseCSV})
 }
 
 func parseUserInfoFromCSVLine(line []string) (UserInfo, error) {
