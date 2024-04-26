@@ -11,9 +11,17 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+
+	"github.com/hanqqv/assessment-tax/postgres"
+	"github.com/hanqqv/assessment-tax/tax"
 )
 
 func main() {
+	p, err := postgres.New()
+	if err != nil {
+		panic(err)
+	}
+
 	e := echo.New()
 
 	e.Use(middleware.Recover())
@@ -21,6 +29,9 @@ func main() {
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, Go Bootcamp!")
 	})
+
+	handler := tax.New(p)
+	e.POST("/tax/calculations", handler.CalculateTaxHandler)
 
 	port := os.Getenv("PORT")
 
