@@ -12,6 +12,7 @@ type Handler struct {
 
 type Storer interface {
 	CalculateTax(userInfo UserInfo) (Tax, error)
+	SettingPersonalDeduction(setting Setting) (float64, error)
 }
 
 func New(db Storer) *Handler {
@@ -92,4 +93,33 @@ func (h *Handler) CalculateTaxHandler(c echo.Context) error {
 func refund(tax *Tax) {
 	tax.TaxRefund = tax.Tax * -1
 	tax.Tax = 0.0
+}
+
+func (h *Handler) SettingPersonalDeductionHandler(c echo.Context) error {
+	var setting Setting
+	if err := c.Bind(&setting); err != nil {
+		return c.JSON(http.StatusBadRequest, Err{Message: "invalid request body"})
+	}
+
+	if setting.Amount == 0.0 {
+		return c.JSON(http.StatusBadRequest, Err{Message: "amount is required"})
+	}
+
+	if setting.Amount < 10000.0 {
+		return c.JSON(http.StatusBadRequest, Err{Message: "personal deduction amount must be greater than or equal to 10,000.0"})
+	}
+	if setting.Amount > 100000.0 {
+		return c.JSON(http.StatusBadRequest, Err{Message: "personal deduction amount must be less than or equal to 100,000.0"})
+	}
+
+	personalDeduction, err := h.store.SettingPersonalDeduction(setting)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, Err{Message: "failed to set personal deduction"})
+	}
+
+	response := PersonalDeductionResponse{
+		PersonalDeduction: personalDeduction,
+	}
+
+	return c.JSON(http.StatusOK, response)
 }

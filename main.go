@@ -41,6 +41,7 @@ func main() {
 	}))
 
 	e.POST("/tax/calculations", handler.CalculateTaxHandler)
+	admin.POST("/deductions/personal", handler.SettingPersonalDeductionHandler)
 
 	port := os.Getenv("PORT")
 

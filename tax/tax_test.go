@@ -16,12 +16,17 @@ import (
 )
 
 type StubTax struct {
-	calculateTax Tax
-	err          error
+	calculateTax             Tax
+	settingPersonalDeduction float64
+	err                      error
 }
 
 func (s *StubTax) CalculateTax(userInfo UserInfo) (Tax, error) {
 	return s.calculateTax, s.err
+}
+
+func (s *StubTax) SettingPersonalDeduction(setting Setting) (float64, error) {
+	return s.settingPersonalDeduction, s.err
 }
 
 func TestCalculateTax(t *testing.T) {
@@ -256,6 +261,126 @@ func TestCalculateTax(t *testing.T) {
 		p := New(&stubTax)
 
 		err := p.CalculateTaxHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
+		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
+	})
+}
+func TestSettingPersonalDeduction(t *testing.T) {
+	t.Run("given user unable to set personal deduction should return status 500 and error message", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/personal", io.NopCloser(strings.NewReader(`{"amount": 70000.0}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/personal")
+
+		want := `{ "message": "failed to set personal deduction" }`
+
+		stubTax := StubTax{err: errors.New("failed to set personal deduction")}
+		p := New(&stubTax)
+
+		err := p.SettingPersonalDeductionHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusInternalServerError, rec.Code, "expected status code %d but got %d", http.StatusInternalServerError, rec.Code)
+		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
+	})
+	t.Run("given admin able to set personal deduction should return status 200 and personal deduction", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/personal", io.NopCloser(strings.NewReader(`{"amount": 70000.0}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/personal")
+
+		want := PersonalDeductionResponse{PersonalDeduction: 70000.0}
+
+		stubTax := StubTax{settingPersonalDeduction: 70000.0}
+		p := New(&stubTax)
+
+		err := p.SettingPersonalDeductionHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusOK, rec.Code, "expected status code %d but got %d", http.StatusOK, rec.Code)
+
+		var got PersonalDeductionResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &got)
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, want, got, "expected personal deduction %v but got %v", want, got)
+	})
+	t.Run("given missing amount should return status 400 and error message", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/personal", io.NopCloser(strings.NewReader(`{}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/personal")
+
+		want := `{ "message": "amount is required" }`
+
+		stubTax := StubTax{}
+		p := New(&stubTax)
+
+		err := p.SettingPersonalDeductionHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
+		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
+	})
+	t.Run("given amount less than 10,000 should return status 400 and error message", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/personal", io.NopCloser(strings.NewReader(`{"amount": 5000.0}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/personal")
+
+		want := `{ "message": "personal deduction amount must be greater than or equal to 10,000.0" }`
+
+		stubTax := StubTax{}
+		p := New(&stubTax)
+
+		err := p.SettingPersonalDeductionHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
+		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
+	})
+	t.Run("given amount greater than 100,000 should return status 400 and error message", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/personal", io.NopCloser(strings.NewReader(`{"amount": 150000.0}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/personal")
+
+		want := `{ "message": "personal deduction amount must be less than or equal to 100,000.0" }`
+
+		stubTax := StubTax{}
+		p := New(&stubTax)
+
+		err := p.SettingPersonalDeductionHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
+		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
+	})
+	t.Run("given invalid request body should return status 400 and error message", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/personal", io.NopCloser(strings.NewReader(`{"amount": "invalid"}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/personal")
+
+		want := `{ "message": "invalid request body" }`
+
+		stubTax := StubTax{}
+		p := New(&stubTax)
+
+		err := p.SettingPersonalDeductionHandler(c)
 
 		assert.NoError(t, err, "expected no error but got %v", err)
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
