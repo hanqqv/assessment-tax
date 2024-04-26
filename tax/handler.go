@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -86,12 +87,32 @@ func (h *Handler) SettingPersonalDeductionHandler(c echo.Context) error {
 func (h *Handler) CalculateTaxCSVHandler(c echo.Context) error {
 	file, err := c.FormFile("taxFile")
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, Err{Message: "invalid file" + err.Error()})
+		return c.JSON(http.StatusBadRequest, Err{Message: "invalid file"})
 	}
 
+	taxResponseCSV, errors := h.processTaxFile(&MultipartFileHeader{file})
+	if errors.Message != "" {
+		return c.JSON(http.StatusBadRequest, err)
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{"taxes": taxResponseCSV})
+}
+
+type MultipartFileHeader struct {
+	*multipart.FileHeader
+}
+
+func (m *MultipartFileHeader) Open() (io.ReadCloser, error) {
+	return m.FileHeader.Open()
+}
+
+type FileOpener interface {
+	Open() (io.ReadCloser, error)
+}
+
+func (h *Handler) processTaxFile(file FileOpener) ([]TaxResponseCSV, Err) {
 	src, err := file.Open()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, Err{Message: "failed to open file"})
+		return nil, Err{Message: "failed to open file"}
 	}
 	defer src.Close()
 
@@ -99,7 +120,7 @@ func (h *Handler) CalculateTaxCSVHandler(c echo.Context) error {
 
 	_, err = reader.Read()
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, Err{Message: "invalid file format"})
+		return nil, Err{Message: "failed to read file"}
 	}
 
 	var taxResponseCSV []TaxResponseCSV
@@ -109,21 +130,21 @@ func (h *Handler) CalculateTaxCSVHandler(c echo.Context) error {
 			break
 		}
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, Err{Message: "failed to read file" + err.Error()})
+			return nil, Err{Message: "failed to read file"}
 		}
 
 		userInfo, err := parseUserInfoFromCSVLine(line)
 		if err != nil {
-			return c.JSON(http.StatusBadRequest, Err{Message: err.Error()})
+			return nil, Err{Message: err.Error()}
 		}
 
 		if err := h.validationUserInfo(userInfo); err.Message != "" {
-			return c.JSON(http.StatusBadRequest, err)
+			return nil, err
 		}
 
 		tax, err := h.store.CalculateTax(userInfo)
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, Err{Message: err.Error()})
+			return nil, Err{Message: err.Error()}
 		}
 
 		if tax.Tax < 0.0 {
@@ -135,7 +156,7 @@ func (h *Handler) CalculateTaxCSVHandler(c echo.Context) error {
 			Tax:         tax.Tax,
 		})
 	}
-	return c.JSON(http.StatusOK, map[string]interface{}{"taxes": taxResponseCSV})
+	return taxResponseCSV, Err{}
 }
 
 func parseUserInfoFromCSVLine(line []string) (UserInfo, error) {
