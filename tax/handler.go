@@ -76,6 +76,13 @@ func (h *Handler) CalculateTaxHandler(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, Err{Message: "failed to calculate tax"})
 	}
+
+	if tax.Tax < 0.0 {
+		refundTax := tax.Tax * -1
+		tax.Tax = 0.0
+		tax.TaxRefund = refundTax
+	}
+
 	return c.JSON(http.StatusOK, tax)
 
 }
