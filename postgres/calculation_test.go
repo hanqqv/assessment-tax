@@ -89,6 +89,31 @@ func TestCalculation(t *testing.T) {
 			}},
 		},
 		{
+			name:              "TaxRefund = 5000.0 when TotalIncome = 100000.0 & WHT = 5000.0 & Donation allowance = 100000.0 & PersonalDeduction = 100000.0",
+			userInfo:          tax.UserInfo{TotalIncome: 100000.0, WHT: 5000, Allowances: []tax.Allowances{{AllowanceType: "donation", Amount: 100000.0}}},
+			personalDeduction: 100000.0,
+			wantTax: tax.Tax{Tax: -5000.0, TaxLevel: []tax.TaxLevel{
+				{Level: "0-150,000", Tax: 0.0},
+				{Level: "150,001-500,000", Tax: 0.0},
+				{Level: "500,001-1,000,000", Tax: 0.0},
+				{Level: "1,000,001-2,000,000", Tax: 0.0},
+				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
+			}},
+		},
+		{
+			name:              "TaxRefund = 5000.0 when TotalIncome = 100000.0 & WHT = 5000.0 & Donation allowance = 100000.0 & PersonalDeduction = 10000.0",
+			userInfo:          tax.UserInfo{TotalIncome: 100000.0, WHT: 5000, Allowances: []tax.Allowances{{AllowanceType: "donation", Amount: 100000.0}}},
+			personalDeduction: 10000.0,
+			wantTax: tax.Tax{Tax: -5000.0, TaxLevel: []tax.TaxLevel{
+				{Level: "0-150,000", Tax: 0.0},
+				{Level: "150,001-500,000", Tax: 0.0},
+				{Level: "500,001-1,000,000", Tax: 0.0},
+				{Level: "1,000,001-2,000,000", Tax: 0.0},
+				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
+			}},
+		},
+
+		{
 			name:              "Tax = 0.0 when TotalIncome = 140000.0",
 			userInfo:          tax.UserInfo{TotalIncome: 140000.0, WHT: 0.0, Allowances: []tax.Allowances{}},
 			personalDeduction: 60000.0,
@@ -185,6 +210,19 @@ func TestCalculation(t *testing.T) {
 			}},
 		},
 		{
+			name:              "Tax = 0.0 when TotalIncome = 220000.0 & PersonalDeduction = 70000.0",
+			userInfo:          tax.UserInfo{TotalIncome: 220000.0, WHT: 0.0, Allowances: []tax.Allowances{}},
+			personalDeduction: 70000.0,
+			wantTax: tax.Tax{Tax: 0.0, TaxLevel: []tax.TaxLevel{
+				{Level: "0-150,000", Tax: 0.0},
+				{Level: "150,001-500,000", Tax: 0.0},
+				{Level: "500,001-1,000,000", Tax: 0.0},
+				{Level: "1,000,001-2,000,000", Tax: 0.0},
+				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
+			}},
+		},
+
+		{
 			name:              "TaxRefund = 4000.0 when TotalIncome = 220000.0 & WHT = 5000.0",
 			userInfo:          tax.UserInfo{TotalIncome: 220000.0, WHT: 5000.0, Allowances: []tax.Allowances{}},
 			personalDeduction: 60000.0,
@@ -224,6 +262,18 @@ func TestCalculation(t *testing.T) {
 			name:              "Tax = 0.0 when TotalIncome = 220000.0 & Donation allowance = 80000.0",
 			userInfo:          tax.UserInfo{TotalIncome: 220000.0, WHT: 0.0, Allowances: []tax.Allowances{{AllowanceType: "donation", Amount: 80000.0}}},
 			personalDeduction: 60000.0,
+			wantTax: tax.Tax{Tax: 0.0, TaxLevel: []tax.TaxLevel{
+				{Level: "0-150,000", Tax: 0.0},
+				{Level: "150,001-500,000", Tax: 0.0},
+				{Level: "500,001-1,000,000", Tax: 0.0},
+				{Level: "1,000,001-2,000,000", Tax: 0.0},
+				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
+			}},
+		},
+		{
+			name:              "Tax = 0.0 when TotalIncome = 250000.0 & Personal Deduction = 100000.0",
+			userInfo:          tax.UserInfo{TotalIncome: 250000.0, WHT: 0.0, Allowances: []tax.Allowances{}},
+			personalDeduction: 100000.0,
 			wantTax: tax.Tax{Tax: 0.0, TaxLevel: []tax.TaxLevel{
 				{Level: "0-150,000", Tax: 0.0},
 				{Level: "150,001-500,000", Tax: 0.0},
@@ -280,6 +330,19 @@ func TestCalculation(t *testing.T) {
 				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
 			}},
 		},
+		{
+			name:              "Tax = 24000.0 when TotalIncome = 500000.0 & Donation allowance = 100000.0 & Personal Deduction = 10000.0",
+			userInfo:          tax.UserInfo{TotalIncome: 500000.0, WHT: 0.0, Allowances: []tax.Allowances{{AllowanceType: "donation", Amount: 100000.0}}},
+			personalDeduction: 10000.0,
+			wantTax: tax.Tax{Tax: 24000.0, TaxLevel: []tax.TaxLevel{
+				{Level: "0-150,000", Tax: 0.0},
+				{Level: "150,001-500,000", Tax: 24000.0},
+				{Level: "500,001-1,000,000", Tax: 0.0},
+				{Level: "1,000,001-2,000,000", Tax: 0.0},
+				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
+			}},
+		},
+
 		{
 			name:              "Tax = 19000.0 when TotalIncome = 500000.0 & Donation allowance = 100000.0",
 			userInfo:          tax.UserInfo{TotalIncome: 500000.0, WHT: 0.0, Allowances: []tax.Allowances{{AllowanceType: "donation", Amount: 100000.0}}},
@@ -377,6 +440,18 @@ func TestCalculation(t *testing.T) {
 			}},
 		},
 		{
+			name:              "Tax = 30000.0 when TotalIncome = 600000.0 & Donation allowance = 50000.0 & Personal Deduction = 100000.0",
+			userInfo:          tax.UserInfo{TotalIncome: 600000.0, WHT: 0.0, Allowances: []tax.Allowances{{AllowanceType: "donation", Amount: 50000.0}}},
+			personalDeduction: 100000.0,
+			wantTax: tax.Tax{Tax: 30000.0, TaxLevel: []tax.TaxLevel{
+				{Level: "0-150,000", Tax: 0.0},
+				{Level: "150,001-500,000", Tax: 30000.0},
+				{Level: "500,001-1,000,000", Tax: 0.0},
+				{Level: "1,000,001-2,000,000", Tax: 0.0},
+				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
+			}},
+		},
+		{
 			name:              "Tax = 35000.0 when TotalIncome = 660000.0 & Donation allowance = 400000.0",
 			userInfo:          tax.UserInfo{TotalIncome: 660000.0, WHT: 0.0, Allowances: []tax.Allowances{{AllowanceType: "donation", Amount: 400000.0}}},
 			personalDeduction: 60000.0,
@@ -408,6 +483,18 @@ func TestCalculation(t *testing.T) {
 				{Level: "0-150,000", Tax: 0.0},
 				{Level: "150,001-500,000", Tax: 35000.0},
 				{Level: "500,001-1,000,000", Tax: 66000.0},
+				{Level: "1,000,001-2,000,000", Tax: 0.0},
+				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
+			}},
+		},
+		{
+			name:              "TaxRefund = 500.0 when TotalIncome = 1000000.0 & WHT = 109000.0 & Personal Deduction = 10000.0",
+			userInfo:          tax.UserInfo{TotalIncome: 1000000.0, WHT: 109000.0, Allowances: []tax.Allowances{}},
+			personalDeduction: 10000.0,
+			wantTax: tax.Tax{Tax: -500.0, TaxLevel: []tax.TaxLevel{
+				{Level: "0-150,000", Tax: 0.0},
+				{Level: "150,001-500,000", Tax: 35000.0},
+				{Level: "500,001-1,000,000", Tax: 73500.0},
 				{Level: "1,000,001-2,000,000", Tax: 0.0},
 				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
 			}},
@@ -456,6 +543,18 @@ func TestCalculation(t *testing.T) {
 				{Level: "0-150,000", Tax: 0.0},
 				{Level: "150,001-500,000", Tax: 35000.0},
 				{Level: "500,001-1,000,000", Tax: 75000.0},
+				{Level: "1,000,001-2,000,000", Tax: 0.0},
+				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
+			}},
+		},
+		{
+			name:              "TaxRefund = 7000.0 when TotalIncome = 1060000.0 & WHT = 111000.0 & Personal Deduction = 100000.0",
+			userInfo:          tax.UserInfo{TotalIncome: 1060000.0, WHT: 111000, Allowances: []tax.Allowances{}},
+			personalDeduction: 100000.0,
+			wantTax: tax.Tax{Tax: -7000.0, TaxLevel: []tax.TaxLevel{
+				{Level: "0-150,000", Tax: 0.0},
+				{Level: "150,001-500,000", Tax: 35000.0},
+				{Level: "500,001-1,000,000", Tax: 69000.0},
 				{Level: "1,000,001-2,000,000", Tax: 0.0},
 				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
 			}},
@@ -569,6 +668,18 @@ func TestCalculation(t *testing.T) {
 			}},
 		},
 		{
+			name:              "TaxRefund = -18000.4 when TotalIncome = 2060000.5 & WHT = 320000.50 & Personal Deduction = 100000.0",
+			userInfo:          tax.UserInfo{TotalIncome: 2060000.5, WHT: 320000.50, Allowances: []tax.Allowances{}},
+			personalDeduction: 100000.0,
+			wantTax: tax.Tax{Tax: -18000.4, TaxLevel: []tax.TaxLevel{
+				{Level: "0-150,000", Tax: 0.0},
+				{Level: "150,001-500,000", Tax: 35000.0},
+				{Level: "500,001-1,000,000", Tax: 75000.0},
+				{Level: "1,000,001-2,000,000", Tax: 192000.1},
+				{Level: "2,000,001 ขึ้นไป", Tax: 0.0},
+			}},
+		},
+		{
 			name:              "TaxRefund = 9999.89 when TotalIncome = 2160001.75 & WHT = 320000.50 & Donation allowance = 700000.0",
 			userInfo:          tax.UserInfo{TotalIncome: 2160001.75, WHT: 320000.50, Allowances: []tax.Allowances{{AllowanceType: "donation", Amount: 700000.0}}},
 			personalDeduction: 60000.0,
@@ -650,6 +761,18 @@ func TestCalculation(t *testing.T) {
 				{Level: "500,001-1,000,000", Tax: 75000.0},
 				{Level: "1,000,001-2,000,000", Tax: 200000.0},
 				{Level: "2,000,001 ขึ้นไป", Tax: 1029000.0},
+			}},
+		},
+		{
+			name:              "Tax = 221500.0 when TotalIncome = 5000000.0 & WHT = 1100000.0 & Donation allowance = 100000.0 & Personal Deduction = 10000.0",
+			userInfo:          tax.UserInfo{TotalIncome: 5000000.0, WHT: 1100000.0, Allowances: []tax.Allowances{{AllowanceType: "donation", Amount: 100000.0}}},
+			personalDeduction: 10000.0,
+			wantTax: tax.Tax{Tax: 221500.0, TaxLevel: []tax.TaxLevel{
+				{Level: "0-150,000", Tax: 0.0},
+				{Level: "150,001-500,000", Tax: 35000.0},
+				{Level: "500,001-1,000,000", Tax: 75000.0},
+				{Level: "1,000,001-2,000,000", Tax: 200000.0},
+				{Level: "2,000,001 ขึ้นไป", Tax: 1011500.0},
 			}},
 		},
 		{
