@@ -1,7 +1,12 @@
 package tax
 
 import (
+	"encoding/csv"
+	"errors"
+	"io"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -76,4 +81,92 @@ func (h *Handler) SettingPersonalDeductionHandler(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, response)
+}
+
+func (h *Handler) CalculateTaxCSVHandler(c echo.Context) error {
+	file, err := c.FormFile("taxFile")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, Err{Message: "invalid file" + err.Error()})
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, Err{Message: "failed to open file"})
+	}
+	defer src.Close()
+
+	reader := csv.NewReader(src)
+
+	_, err = reader.Read()
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, Err{Message: "invalid file format"})
+	}
+
+	var taxResponseCSV []TaxResponseCSV
+	for {
+		line, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, Err{Message: "failed to read file" + err.Error()})
+		}
+
+		userInfo, err := parseUserInfoFromCSVLine(line)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, Err{Message: err.Error()})
+		}
+
+		if err := h.validationUserInfo(userInfo); err.Message != "" {
+			return c.JSON(http.StatusBadRequest, err)
+		}
+
+		tax, err := h.store.CalculateTax(userInfo)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, Err{Message: err.Error()})
+		}
+
+		if tax.Tax < 0.0 {
+			refund(&tax)
+		}
+
+		taxResponseCSV = append(taxResponseCSV, TaxResponseCSV{
+			TotalIncome: userInfo.TotalIncome,
+			Tax:         tax.Tax,
+		})
+	}
+	return c.JSON(http.StatusOK, taxResponseCSV)
+}
+
+func parseUserInfoFromCSVLine(line []string) (UserInfo, error) {
+	if len(line) != 3 {
+		return UserInfo{}, errors.New("invalid file format")
+	}
+
+	totalIncomeStr, whtStr, donationStr := strings.TrimSpace(line[0]), strings.TrimSpace(line[1]), strings.TrimSpace(line[2])
+
+	if totalIncomeStr == "" || whtStr == "" || donationStr == "" {
+		return UserInfo{}, errors.New("invalid file format")
+	}
+
+	totalIncome, err := strconv.ParseFloat(totalIncomeStr, 64)
+	if err != nil {
+		return UserInfo{}, errors.New("totalIncome must be numeric value")
+	}
+
+	wht, err := strconv.ParseFloat(whtStr, 64)
+	if err != nil {
+		return UserInfo{}, errors.New("wht must be numeric value")
+	}
+
+	donation, err := strconv.ParseFloat(donationStr, 64)
+	if err != nil {
+		return UserInfo{}, errors.New("donation must be numeric value")
+	}
+
+	return UserInfo{
+		TotalIncome: totalIncome,
+		WHT:         wht,
+		Allowances:  []Allowances{{AllowanceType: "donation", Amount: donation}},
+	}, nil
 }
