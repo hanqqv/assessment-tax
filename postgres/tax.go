@@ -11,6 +11,13 @@ func (p *Postgres) CalculateTax(userInfo tax.UserInfo) (tax.Tax, error) {
 	var taxAmount float64
 	netAmount := userInfo.TotalIncome - personalDeduction
 
+	for _, allowance := range userInfo.Allowances {
+		if allowance.AllowanceType == "donation" && allowance.Amount > 100000.0 {
+			allowance.Amount = 100000.0
+		}
+		netAmount -= allowance.Amount
+	}
+
 	if netAmount <= 150000.0 {
 		taxAmount = 0.0 - userInfo.WHT
 		taxAmount = math.Round(taxAmount*100) / 100
