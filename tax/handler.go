@@ -12,6 +12,7 @@ type Handler struct {
 
 type Storer interface {
 	CalculateTax(userInfo UserInfo) (Tax, error)
+	SettingPersonalDeduction(setting Setting) (float64, error)
 }
 
 func New(db Storer) *Handler {
@@ -20,45 +21,6 @@ func New(db Storer) *Handler {
 
 type Err struct {
 	Message string `json:"message"`
-}
-
-func (h *Handler) validationUserInfo(userInfo UserInfo) Err {
-	if userInfo.TotalIncome == 0.0 {
-		return Err{Message: "total income is required"}
-	}
-	if userInfo.TotalIncome < 0.0 {
-		return Err{Message: "total income must be greater than 0.0"}
-	}
-	if userInfo.WHT < 0.0 {
-		return Err{Message: "wht must be greater than or equal to 0.0"}
-	}
-	if userInfo.WHT > userInfo.TotalIncome {
-		return Err{Message: "wht must be less than or equal to total income"}
-	}
-	for _, allowance := range userInfo.Allowances {
-		if allowance.AllowanceType == "" {
-			return Err{Message: "missing allowanceType key"}
-		}
-		if allowance.Amount < 0.0 {
-			return Err{Message: "allowance amount must be greater than or equal to 0.0"}
-		}
-		if allowance.AllowanceType == "personal" {
-			return Err{Message: "user can not fill personal allowance"}
-		}
-	}
-
-	return Err{}
-}
-
-func (h *Handler) isValidAllowanceType(allowanceType string) bool {
-	validAllowanceTypes := map[string]bool{
-		"donation":  true,
-		"k-receipt": true,
-		"personal":  true,
-	}
-
-	_, ok := validAllowanceTypes[allowanceType]
-	return ok
 }
 
 func (h *Handler) CalculateTaxHandler(c echo.Context) error {
@@ -92,4 +54,26 @@ func (h *Handler) CalculateTaxHandler(c echo.Context) error {
 func refund(tax *Tax) {
 	tax.TaxRefund = tax.Tax * -1
 	tax.Tax = 0.0
+}
+
+func (h *Handler) SettingPersonalDeductionHandler(c echo.Context) error {
+	var setting Setting
+	if err := c.Bind(&setting); err != nil {
+		return c.JSON(http.StatusBadRequest, Err{Message: "invalid request body"})
+	}
+
+	if err := h.validationPersonalDeductionSetting(setting); err.Message != "" {
+		return c.JSON(http.StatusBadRequest, err)
+	}
+
+	personalDeduction, err := h.store.SettingPersonalDeduction(setting)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, Err{Message: "failed to set personal deduction"})
+	}
+
+	response := PersonalDeductionResponse{
+		PersonalDeduction: personalDeduction,
+	}
+
+	return c.JSON(http.StatusOK, response)
 }

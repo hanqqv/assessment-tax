@@ -31,7 +31,17 @@ func main() {
 	})
 
 	handler := tax.New(p)
+	admin := e.Group("/admin")
+
+	admin.Use(middleware.BasicAuth(func(username, password string, c echo.Context) (bool, error) {
+		if username == os.Getenv("ADMIN_USERNAME") && password == os.Getenv("ADMIN_PASSWORD") {
+			return true, nil
+		}
+		return false, nil
+	}))
+
 	e.POST("/tax/calculations", handler.CalculateTaxHandler)
+	admin.POST("/deductions/personal", handler.SettingPersonalDeductionHandler)
 
 	port := os.Getenv("PORT")
 
