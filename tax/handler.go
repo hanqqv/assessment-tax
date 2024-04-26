@@ -78,11 +78,14 @@ func (h *Handler) CalculateTaxHandler(c echo.Context) error {
 	}
 
 	if tax.Tax < 0.0 {
-		refundTax := tax.Tax * -1
-		tax.Tax = 0.0
-		tax.TaxRefund = refundTax
+		refund(&tax)
 	}
 
 	return c.JSON(http.StatusOK, tax)
 
+}
+
+func refund(tax *Tax) {
+	tax.TaxRefund = tax.Tax * -1
+	tax.Tax = 0.0
 }
