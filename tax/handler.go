@@ -42,6 +42,9 @@ func (h *Handler) validationUserInfo(userInfo UserInfo) Err {
 		if allowance.Amount < 0.0 {
 			return Err{Message: "allowance amount must be greater than or equal to 0.0"}
 		}
+		if allowance.AllowanceType == "personal" {
+			return Err{Message: "user can not fill personal allowance"}
+		}
 	}
 
 	return Err{}
@@ -51,6 +54,7 @@ func (h *Handler) isValidAllowanceType(allowanceType string) bool {
 	validAllowanceTypes := map[string]bool{
 		"donation":  true,
 		"k-receipt": true,
+		"personal":  true,
 	}
 
 	_, ok := validAllowanceTypes[allowanceType]

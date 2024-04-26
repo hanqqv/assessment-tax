@@ -173,7 +173,14 @@ func (p *Postgres) CalculateTax(userInfo tax.UserInfo) (tax.Tax, error) <span cl
         var taxAmount float64
         netAmount := userInfo.TotalIncome - personalDeduction
 
-        if netAmount &lt;= 150000.0 </span><span class="cov8" title="1">{
+        for _, allowance := range userInfo.Allowances </span><span class="cov8" title="1">{
+                if allowance.AllowanceType == "donation" &amp;&amp; allowance.Amount &gt; 100000.0 </span><span class="cov8" title="1">{
+                        allowance.Amount = 100000.0
+                }</span>
+                <span class="cov8" title="1">netAmount -= allowance.Amount</span>
+        }
+
+        <span class="cov8" title="1">if netAmount &lt;= 150000.0 </span><span class="cov8" title="1">{
                 taxAmount = 0.0 - userInfo.WHT
                 taxAmount = math.Round(taxAmount*100) / 100
                 return tax.Tax{Tax: taxAmount}, nil
@@ -246,6 +253,9 @@ func (h *Handler) validationUserInfo(userInfo UserInfo) Err <span class="cov8" t
                 <span class="cov8" title="1">if allowance.Amount &lt; 0.0 </span><span class="cov8" title="1">{
                         return Err{Message: "allowance amount must be greater than or equal to 0.0"}
                 }</span>
+                <span class="cov8" title="1">if allowance.AllowanceType == "personal" </span><span class="cov8" title="1">{
+                        return Err{Message: "user can not fill personal allowance"}
+                }</span>
         }
 
         <span class="cov8" title="1">return Err{}</span>
@@ -255,6 +265,7 @@ func (h *Handler) isValidAllowanceType(allowanceType string) bool <span class="c
         validAllowanceTypes := map[string]bool{
                 "donation":  true,
                 "k-receipt": true,
+                "personal":  true,
         }
 
         _, ok := validAllowanceTypes[allowanceType]
