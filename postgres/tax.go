@@ -25,35 +25,60 @@ func (p *Postgres) CalculateTax(userInfo tax.UserInfo) (tax.Tax, error) {
 		netAmount -= allowance.Amount
 	}
 
-	if netAmount <= 150000.0 {
-		taxAmount = 0.0 - userInfo.WHT
-		taxAmount = math.Round(taxAmount*100) / 100
-		defaultTaxLevels[0].Tax = taxAmount
-		return tax.Tax{Tax: taxAmount, TaxLevel: append([]tax.TaxLevel(nil), defaultTaxLevels...)}, nil
+	if netAmount > 150000.0 {
+		taxAmount += 0.0
+		defaultTaxLevels[0].Tax = 0.0
+		netAmount -= 150000.0
+	} else {
+		taxAmount += 0.0
+		defaultTaxLevels[0].Tax = 0.0
+		netAmount = 0.0
+
 	}
 
-	if netAmount <= 500000.0 {
-		taxAmount = 0.10*(netAmount-150000.0) - userInfo.WHT
-		taxAmount = math.Round(taxAmount*100) / 100
-		defaultTaxLevels[1].Tax = taxAmount
-		return tax.Tax{Tax: taxAmount, TaxLevel: append([]tax.TaxLevel(nil), defaultTaxLevels...)}, nil
+	if netAmount > 350000.0 {
+		taxAmount += 0.10 * 350000.0
+		defaultTaxLevels[1].Tax = 0.10 * 350000.0
+		netAmount -= 350000.0
+	} else {
+		taxAmount += 0.10 * netAmount
+		defaultTaxLevels[1].Tax = 0.10 * netAmount
+		netAmount = 0.0
 	}
 
-	if netAmount <= 1000000.0 {
-		taxAmount = 35000.0 + (0.15 * (netAmount - 500000.0)) - userInfo.WHT
-		taxAmount = math.Round(taxAmount*100) / 100
-		defaultTaxLevels[2].Tax = taxAmount
-		return tax.Tax{Tax: taxAmount, TaxLevel: append([]tax.TaxLevel(nil), defaultTaxLevels...)}, nil
+	if netAmount > 500000.0 {
+		taxAmount += 0.15 * 500000.0
+		defaultTaxLevels[2].Tax = 0.15 * 500000.0
+		netAmount -= 500000.0
+	} else {
+		taxAmount += 0.15 * netAmount
+		defaultTaxLevels[2].Tax = 0.15 * netAmount
+		netAmount = 0.0
 	}
 
-	if netAmount <= 2000000.0 {
-		taxAmount = 35000.0 + 75000.0 + (0.20 * (netAmount - 1000000.0)) - userInfo.WHT
-		taxAmount = math.Round(taxAmount*100) / 100
-		defaultTaxLevels[3].Tax = taxAmount
-		return tax.Tax{Tax: taxAmount, TaxLevel: append([]tax.TaxLevel(nil), defaultTaxLevels...)}, nil
+	if netAmount > 1000000.0 {
+		taxAmount += 0.20 * 1000000.0
+		defaultTaxLevels[3].Tax = 0.20 * 1000000.0
+		netAmount -= 1000000.0
+	} else {
+		taxAmount += 0.20 * netAmount
+		defaultTaxLevels[3].Tax = 0.20 * netAmount
+		netAmount = 0.0
+
 	}
-	taxAmount = 35000.0 + 75000.0 + 200000.0 + (0.35 * (netAmount - 2000000.0)) - userInfo.WHT
+
+	if netAmount > 0.0 {
+		taxAmount += 0.35 * netAmount
+		defaultTaxLevels[4].Tax = 0.35 * netAmount
+		netAmount = 0.0
+	}
+
+	for i := range defaultTaxLevels {
+		defaultTaxLevels[i].Tax = math.Round(defaultTaxLevels[i].Tax*100) / 100
+	}
+
+	taxAmount -= userInfo.WHT
 	taxAmount = math.Round(taxAmount*100) / 100
-	defaultTaxLevels[4].Tax = taxAmount
+
 	return tax.Tax{Tax: taxAmount, TaxLevel: append([]tax.TaxLevel(nil), defaultTaxLevels...)}, nil
 }
