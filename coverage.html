@@ -57,11 +57,17 @@
 				
 				<option value="file0">github.com/hanqqv/assessment-tax/main.go (0.0%)</option>
 				
-				<option value="file1">github.com/hanqqv/assessment-tax/postgres/postgres.go (0.0%)</option>
+				<option value="file1">github.com/hanqqv/assessment-tax/postgres/calculation.go (100.0%)</option>
 				
-				<option value="file2">github.com/hanqqv/assessment-tax/postgres/tax.go (100.0%)</option>
+				<option value="file2">github.com/hanqqv/assessment-tax/postgres/postgres.go (0.0%)</option>
 				
-				<option value="file3">github.com/hanqqv/assessment-tax/tax/handler.go (100.0%)</option>
+				<option value="file3">github.com/hanqqv/assessment-tax/postgres/tax.go (100.0%)</option>
+				
+				<option value="file4">github.com/hanqqv/assessment-tax/tax/csv_processor.go (91.5%)</option>
+				
+				<option value="file5">github.com/hanqqv/assessment-tax/tax/handler.go (100.0%)</option>
+				
+				<option value="file6">github.com/hanqqv/assessment-tax/tax/validation.go (100.0%)</option>
 				
 				</select>
 			</div>
@@ -108,7 +114,18 @@ func main() <span class="cov0" title="0">{
         }</span>)
 
         <span class="cov0" title="0">handler := tax.New(p)
-        e.POST("/tax/calculations", handler.CalculateTaxHandler)
+        admin := e.Group("/admin")
+
+        admin.Use(middleware.BasicAuth(func(username, password string, c echo.Context) (bool, error) </span><span class="cov0" title="0">{
+                if username == os.Getenv("ADMIN_USERNAME") &amp;&amp; password == os.Getenv("ADMIN_PASSWORD") </span><span class="cov0" title="0">{
+                        return true, nil
+                }</span>
+                <span class="cov0" title="0">return false, nil</span>
+        }))
+
+        <span class="cov0" title="0">e.POST("/tax/calculations", handler.CalculateTaxHandler)
+        e.POST("/tax/calculations/upload-csv", handler.CalculateTaxCSVHandler)
+        admin.POST("/deductions/personal", handler.SettingPersonalDeductionHandler)
 
         port := os.Getenv("PORT")
 
@@ -133,43 +150,12 @@ func main() <span class="cov0" title="0">{
 		<pre class="file" id="file1" style="display: none">package postgres
 
 import (
-        "database/sql"
-        "log"
-        "os"
-
-        _ "github.com/lib/pq"
-)
-
-type Postgres struct {
-        DB *sql.DB
-}
-
-func New() (*Postgres, error) <span class="cov0" title="0">{
-        databaseURL := os.Getenv("DATABASE_URL")
-        db, err := sql.Open("postgres", databaseURL)
-        if err != nil </span><span class="cov0" title="0">{
-                log.Fatal(err)
-                return nil, err
-        }</span>
-        <span class="cov0" title="0">err = db.Ping()
-        if err != nil </span><span class="cov0" title="0">{
-                log.Fatal(err)
-                return nil, err
-        }</span>
-        <span class="cov0" title="0">return &amp;Postgres{DB: db}, nil</span>
-}
-</pre>
-		
-		<pre class="file" id="file2" style="display: none">package postgres
-
-import (
         "math"
 
         "github.com/hanqqv/assessment-tax/tax"
 )
 
-func (p *Postgres) CalculateTax(userInfo tax.UserInfo) (tax.Tax, error) <span class="cov8" title="1">{
-        personalDeduction := 60000.0
+func calculate(userInfo tax.UserInfo, personalDeduction float64) (tax.Tax, error) <span class="cov8" title="1">{
         var taxAmount float64
         netAmount := userInfo.TotalIncome - personalDeduction
         defaultTaxLevels := []tax.TaxLevel{
@@ -246,7 +232,190 @@ func (p *Postgres) CalculateTax(userInfo tax.UserInfo) (tax.Tax, error) <span cl
 }
 </pre>
 		
-		<pre class="file" id="file3" style="display: none">package tax
+		<pre class="file" id="file2" style="display: none">package postgres
+
+import (
+        "database/sql"
+        "log"
+        "os"
+
+        _ "github.com/lib/pq"
+)
+
+type Postgres struct {
+        DB *sql.DB
+}
+
+func New() (*Postgres, error) <span class="cov0" title="0">{
+        databaseURL := os.Getenv("DATABASE_URL")
+        db, err := sql.Open("postgres", databaseURL)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatal(err)
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">err = db.Ping()
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatal(err)
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return &amp;Postgres{DB: db}, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package postgres
+
+import (
+        "github.com/hanqqv/assessment-tax/tax"
+)
+
+func (p *Postgres) CalculateTax(userInfo tax.UserInfo) (tax.Tax, error) <span class="cov8" title="1">{
+        personalDeduction, err := p.getPersonalDeduction()
+        if err != nil </span><span class="cov8" title="1">{
+                return tax.Tax{}, err
+        }</span>
+        <span class="cov8" title="1">return calculate(userInfo, personalDeduction)</span>
+}
+
+func (p *Postgres) SettingPersonalDeduction(setting tax.Setting) (float64, error) <span class="cov8" title="1">{
+        row := p.DB.QueryRow("UPDATE deductions_setting SET amount = $1 WHERE allowance_type = $2 RETURNING amount", setting.Amount, "personal")
+        var personalDeduction float64
+        err := row.Scan(&amp;personalDeduction)
+        if err != nil </span><span class="cov8" title="1">{
+                return 0, err
+        }</span>
+        <span class="cov8" title="1">return personalDeduction, nil</span>
+}
+
+func (p *Postgres) getPersonalDeduction() (float64, error) <span class="cov8" title="1">{
+        row := p.DB.QueryRow("SELECT amount FROM deductions_setting WHERE allowance_type = $1", "personal")
+        var personalDeduction float64
+        err := row.Scan(&amp;personalDeduction)
+        if err != nil </span><span class="cov8" title="1">{
+                return 0, err
+        }</span>
+        <span class="cov8" title="1">return personalDeduction, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package tax
+
+import (
+        "encoding/csv"
+        "fmt"
+        "io"
+        "mime/multipart"
+        "strconv"
+        "strings"
+)
+
+type MultipartFileHeader struct {
+        *multipart.FileHeader
+}
+
+func (m *MultipartFileHeader) Open() (io.ReadCloser, error) <span class="cov8" title="1">{
+        return m.FileHeader.Open()
+}</span>
+
+type FileOpener interface {
+        Open() (io.ReadCloser, error)
+}
+
+func (h *Handler) processTaxFile(file FileOpener) ([]TaxResponseCSV, Err) <span class="cov8" title="1">{
+        src, err := file.Open()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, Err{Message: "failed to open file"}
+        }</span>
+        <span class="cov8" title="1">defer src.Close()
+
+        reader := csv.NewReader(src)
+
+        _, err = reader.Read()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, Err{Message: "error reading file"}
+        }</span>
+
+        <span class="cov8" title="1">var taxResponseCSV []TaxResponseCSV
+        for </span><span class="cov8" title="1">{
+                line, err := reader.Read()
+                if err == io.EOF </span><span class="cov8" title="1">{
+                        break</span>
+                }
+                <span class="cov8" title="1">if err != nil </span><span class="cov8" title="1">{
+                        return nil, Err{Message: "error reading file: invalid format"}
+                }</span>
+
+                <span class="cov8" title="1">taxResponse, error := h.processCSVLine(line)
+                if error.Message != "" </span><span class="cov8" title="1">{
+                        return nil, Err{Message: error.Message}
+                }</span>
+
+                <span class="cov8" title="1">taxResponseCSV = append(taxResponseCSV, taxResponse)</span>
+        }
+
+        <span class="cov8" title="1">return taxResponseCSV, Err{}</span>
+}
+
+func (h *Handler) processCSVLine(line []string) (TaxResponseCSV, Err) <span class="cov8" title="1">{
+        userInfo, err := parseUserInfoFromCSVLine(line)
+        if err != nil </span><span class="cov8" title="1">{
+                return TaxResponseCSV{}, Err{Message: err.Error()}
+        }</span>
+
+        <span class="cov8" title="1">if err := h.validationUserInfo(userInfo); err.Message != "" </span><span class="cov8" title="1">{
+                return TaxResponseCSV{}, Err{Message: err.Message}
+        }</span>
+
+        <span class="cov8" title="1">tax, err := h.store.CalculateTax(userInfo)
+        if err != nil </span><span class="cov0" title="0">{
+                return TaxResponseCSV{}, Err{Message: err.Error()}
+        }</span>
+
+        <span class="cov8" title="1">if tax.Tax &lt; 0.0 </span><span class="cov0" title="0">{
+                refund(&amp;tax)
+        }</span>
+
+        <span class="cov8" title="1">return TaxResponseCSV{
+                TotalIncome: userInfo.TotalIncome,
+                Tax:         tax.Tax,
+                TaxRefund:   tax.TaxRefund,
+        }, Err{}</span>
+}
+
+func parseUserInfoFromCSVLine(line []string) (UserInfo, error) <span class="cov8" title="1">{
+        if len(line) != 3 </span><span class="cov8" title="1">{
+                return UserInfo{}, fmt.Errorf("invalid file format")
+        }</span>
+
+        <span class="cov8" title="1">totalIncomeStr, whtStr, donationStr := strings.TrimSpace(line[0]), strings.TrimSpace(line[1]), strings.TrimSpace(line[2])
+
+        if totalIncomeStr == "" || whtStr == "" || donationStr == "" </span><span class="cov8" title="1">{
+                return UserInfo{}, fmt.Errorf("totalIncome, wht or donation value can not be empty")
+        }</span>
+
+        <span class="cov8" title="1">totalIncome, err := strconv.ParseFloat(totalIncomeStr, 64)
+        if err != nil </span><span class="cov8" title="1">{
+                return UserInfo{}, fmt.Errorf("totalIncome must be a numeric value")
+        }</span>
+
+        <span class="cov8" title="1">wht, err := strconv.ParseFloat(whtStr, 64)
+        if err != nil </span><span class="cov8" title="1">{
+                return UserInfo{}, fmt.Errorf("wht must be a numeric value")
+        }</span>
+
+        <span class="cov8" title="1">donation, err := strconv.ParseFloat(donationStr, 64)
+        if err != nil </span><span class="cov8" title="1">{
+                return UserInfo{}, fmt.Errorf("donation must be a numeric value")
+        }</span>
+
+        <span class="cov8" title="1">return UserInfo{
+                TotalIncome: totalIncome,
+                WHT:         wht,
+                Allowances:  []Allowances{{AllowanceType: "donation", Amount: donation}},
+        }, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package tax
 
 import (
         "net/http"
@@ -260,6 +429,7 @@ type Handler struct {
 
 type Storer interface {
         CalculateTax(userInfo UserInfo) (Tax, error)
+        SettingPersonalDeduction(setting Setting) (float64, error)
 }
 
 func New(db Storer) *Handler <span class="cov8" title="1">{
@@ -269,6 +439,77 @@ func New(db Storer) *Handler <span class="cov8" title="1">{
 type Err struct {
         Message string `json:"message"`
 }
+
+func (h *Handler) CalculateTaxHandler(c echo.Context) error <span class="cov8" title="1">{
+        var userInfo UserInfo
+        if err := c.Bind(&amp;userInfo); err != nil </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusBadRequest, Err{Message: "invalid request body"})
+        }</span>
+        <span class="cov8" title="1">if err := h.validationUserInfo(userInfo); err.Message != "" </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusBadRequest, err)
+        }</span>
+
+        <span class="cov8" title="1">for _, allowance := range userInfo.Allowances </span><span class="cov8" title="1">{
+                if !h.isValidAllowanceType(allowance.AllowanceType) </span><span class="cov8" title="1">{
+                        return c.JSON(http.StatusBadRequest, Err{Message: "invalid allowance type"})
+                }</span>
+        }
+
+        <span class="cov8" title="1">tax, err := h.store.CalculateTax(userInfo)
+        if err != nil </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusInternalServerError, Err{Message: "failed to calculate tax"})
+        }</span>
+
+        <span class="cov8" title="1">if tax.Tax &lt; 0.0 </span><span class="cov8" title="1">{
+                refund(&amp;tax)
+        }</span>
+
+        <span class="cov8" title="1">return c.JSON(http.StatusOK, tax)</span>
+
+}
+
+func refund(tax *Tax) <span class="cov8" title="1">{
+        tax.TaxRefund = tax.Tax * -1
+        tax.Tax = 0.0
+}</span>
+
+func (h *Handler) SettingPersonalDeductionHandler(c echo.Context) error <span class="cov8" title="1">{
+        var setting Setting
+        if err := c.Bind(&amp;setting); err != nil </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusBadRequest, Err{Message: "invalid request body"})
+        }</span>
+
+        <span class="cov8" title="1">if err := h.validationPersonalDeductionSetting(setting); err.Message != "" </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusBadRequest, err)
+        }</span>
+
+        <span class="cov8" title="1">personalDeduction, err := h.store.SettingPersonalDeduction(setting)
+        if err != nil </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusInternalServerError, Err{Message: "failed to set personal deduction"})
+        }</span>
+
+        <span class="cov8" title="1">response := PersonalDeductionResponse{
+                PersonalDeduction: personalDeduction,
+        }
+
+        return c.JSON(http.StatusOK, response)</span>
+}
+
+func (h *Handler) CalculateTaxCSVHandler(c echo.Context) error <span class="cov8" title="1">{
+        file, err := c.FormFile("taxFile")
+        if err != nil </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusBadRequest, Err{Message: "invalid file : key must be taxFile"})
+        }</span>
+
+        <span class="cov8" title="1">taxResponseCSV, errors := h.processTaxFile(&amp;MultipartFileHeader{file})
+        if errors.Message != "" </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusBadRequest, errors)
+        }</span>
+        <span class="cov8" title="1">return c.JSON(http.StatusOK, map[string]interface{}{"taxes": taxResponseCSV})</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package tax
 
 func (h *Handler) validationUserInfo(userInfo UserInfo) Err <span class="cov8" title="1">{
         if userInfo.TotalIncome == 0.0 </span><span class="cov8" title="1">{
@@ -309,38 +550,19 @@ func (h *Handler) isValidAllowanceType(allowanceType string) bool <span class="c
         return ok
 }</span>
 
-func (h *Handler) CalculateTaxHandler(c echo.Context) error <span class="cov8" title="1">{
-        var userInfo UserInfo
-        if err := c.Bind(&amp;userInfo); err != nil </span><span class="cov8" title="1">{
-                return c.JSON(http.StatusBadRequest, Err{Message: "invalid request body"})
+func (h *Handler) validationPersonalDeductionSetting(setting Setting) Err <span class="cov8" title="1">{
+        if setting.Amount == 0.0 </span><span class="cov8" title="1">{
+                return Err{Message: "amount is required"}
         }</span>
-        <span class="cov8" title="1">if err := h.validationUserInfo(userInfo); err.Message != "" </span><span class="cov8" title="1">{
-                return c.JSON(http.StatusBadRequest, err)
+        <span class="cov8" title="1">if setting.Amount &lt; 10000.0 </span><span class="cov8" title="1">{
+                return Err{Message: "personal deduction amount must be greater than or equal to 10,000.0"}
         }</span>
-
-        <span class="cov8" title="1">for _, allowance := range userInfo.Allowances </span><span class="cov8" title="1">{
-                if !h.isValidAllowanceType(allowance.AllowanceType) </span><span class="cov8" title="1">{
-                        return c.JSON(http.StatusBadRequest, Err{Message: "invalid allowance type"})
-                }</span>
-        }
-
-        <span class="cov8" title="1">tax, err := h.store.CalculateTax(userInfo)
-        if err != nil </span><span class="cov8" title="1">{
-                return c.JSON(http.StatusInternalServerError, Err{Message: "failed to calculate tax"})
+        <span class="cov8" title="1">if setting.Amount &gt; 100000.0 </span><span class="cov8" title="1">{
+                return Err{Message: "personal deduction amount must be less than or equal to 100,000.0"}
         }</span>
 
-        <span class="cov8" title="1">if tax.Tax &lt; 0.0 </span><span class="cov8" title="1">{
-                refund(&amp;tax)
-        }</span>
-
-        <span class="cov8" title="1">return c.JSON(http.StatusOK, tax)</span>
-
+        <span class="cov8" title="1">return Err{}</span>
 }
-
-func refund(tax *Tax) <span class="cov8" title="1">{
-        tax.TaxRefund = tax.Tax * -1
-        tax.Tax = 0.0
-}</span>
 </pre>
 		
 		</div>

@@ -77,3 +77,16 @@ func (h *Handler) SettingPersonalDeductionHandler(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, response)
 }
+
+func (h *Handler) CalculateTaxCSVHandler(c echo.Context) error {
+	file, err := c.FormFile("taxFile")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, Err{Message: "invalid file : key must be taxFile"})
+	}
+
+	taxResponseCSV, errors := h.processTaxFile(&MultipartFileHeader{file})
+	if errors.Message != "" {
+		return c.JSON(http.StatusBadRequest, errors)
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{"taxes": taxResponseCSV})
+}

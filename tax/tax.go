@@ -29,3 +29,9 @@ type Setting struct {
 type PersonalDeductionResponse struct {
 	PersonalDeduction float64 `json:"personalDeduction"`
 }
+
+type TaxResponseCSV struct {
+	TotalIncome float64 `json:"totalIncome"`
+	Tax         float64 `json:"tax"`
+	TaxRefund   float64 `json:"taxRefund,omitempty"`
+}
