@@ -219,5 +219,28 @@ func TestCalculateTax(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
 		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
 	})
+	t.Run("given tax refund is negative should return status 200 and tax result", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/tax/calculations", io.NopCloser(strings.NewReader(`{"totalIncome": 500000.0, "wht": 30000.0, "allowances": [{"allowanceType": "donation", "amount": 0.0}]}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/tax/calculations")
+
+		want := Tax{Tax: 0.0, TaxRefund: 1000.0}
+
+		stubTax := StubTax{calculateTax: Tax{Tax: -1000.0}}
+		p := New(&stubTax)
+
+		err := p.CalculateTaxHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusOK, rec.Code, "expected status code %d but got %d", http.StatusOK, rec.Code)
+
+		var got Tax
+		err = json.Unmarshal(rec.Body.Bytes(), &got)
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, want, got, "expected tax %v but got %v", want, got)
+	})
 
 }

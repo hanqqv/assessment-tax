@@ -174,29 +174,29 @@ func (p *Postgres) CalculateTax(userInfo tax.UserInfo) (tax.Tax, error) <span cl
         netAmount := userInfo.TotalIncome - personalDeduction
 
         if netAmount &lt;= 150000.0 </span><span class="cov8" title="1">{
-                taxAmount = 0.0
+                taxAmount = 0.0 - userInfo.WHT
                 taxAmount = math.Round(taxAmount*100) / 100
                 return tax.Tax{Tax: taxAmount}, nil
         }</span>
 
         <span class="cov8" title="1">if netAmount &lt;= 500000.0 </span><span class="cov8" title="1">{
-                taxAmount = 0.10 * (netAmount - 150000.0)
+                taxAmount = 0.10*(netAmount-150000.0) - userInfo.WHT
                 taxAmount = math.Round(taxAmount*100) / 100
                 return tax.Tax{Tax: taxAmount}, nil
         }</span>
 
         <span class="cov8" title="1">if netAmount &lt;= 1000000.0 </span><span class="cov8" title="1">{
-                taxAmount = 35000.0 + (0.15 * (netAmount - 500000.0))
+                taxAmount = 35000.0 + (0.15 * (netAmount - 500000.0)) - userInfo.WHT
                 taxAmount = math.Round(taxAmount*100) / 100
                 return tax.Tax{Tax: taxAmount}, nil
         }</span>
 
         <span class="cov8" title="1">if netAmount &lt;= 2000000.0 </span><span class="cov8" title="1">{
-                taxAmount = 35000.0 + 75000.0 + (0.20 * (netAmount - 1000000.0))
+                taxAmount = 35000.0 + 75000.0 + (0.20 * (netAmount - 1000000.0)) - userInfo.WHT
                 taxAmount = math.Round(taxAmount*100) / 100
                 return tax.Tax{Tax: taxAmount}, nil
         }</span>
-        <span class="cov8" title="1">taxAmount = 35000.0 + 75000.0 + 200000.0 + (0.35 * (netAmount - 2000000.0))
+        <span class="cov8" title="1">taxAmount = 35000.0 + 75000.0 + 200000.0 + (0.35 * (netAmount - 2000000.0)) - userInfo.WHT
         taxAmount = math.Round(taxAmount*100) / 100
         return tax.Tax{Tax: taxAmount}, nil</span>
 }
@@ -280,9 +280,19 @@ func (h *Handler) CalculateTaxHandler(c echo.Context) error <span class="cov8" t
         if err != nil </span><span class="cov8" title="1">{
                 return c.JSON(http.StatusInternalServerError, Err{Message: "failed to calculate tax"})
         }</span>
+
+        <span class="cov8" title="1">if tax.Tax &lt; 0.0 </span><span class="cov8" title="1">{
+                refund(&amp;tax)
+        }</span>
+
         <span class="cov8" title="1">return c.JSON(http.StatusOK, tax)</span>
 
 }
+
+func refund(tax *Tax) <span class="cov8" title="1">{
+        tax.TaxRefund = tax.Tax * -1
+        tax.Tax = 0.0
+}</span>
 </pre>
 		
 		</div>
