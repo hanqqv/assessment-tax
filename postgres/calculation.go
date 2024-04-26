@@ -6,8 +6,7 @@ import (
 	"github.com/hanqqv/assessment-tax/tax"
 )
 
-func calculate(userInfo tax.UserInfo) (tax.Tax, error) {
-	personalDeduction := 60000.0
+func calculate(userInfo tax.UserInfo, personalDeduction float64) (tax.Tax, error) {
 	var taxAmount float64
 	netAmount := userInfo.TotalIncome - personalDeduction
 	defaultTaxLevels := []tax.TaxLevel{
