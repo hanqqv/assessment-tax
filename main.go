@@ -43,6 +43,7 @@ func main() {
 	e.POST("/tax/calculations", handler.CalculateTaxHandler)
 	e.POST("/tax/calculations/upload-csv", handler.CalculateTaxCSVHandler)
 	admin.POST("/deductions/personal", handler.SettingPersonalDeductionHandler)
+	admin.POST("/deductions/k-receipt", handler.SettingMaxKReceiptHandler)
 
 	port := os.Getenv("PORT")
 

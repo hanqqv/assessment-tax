@@ -126,6 +126,7 @@ func main() <span class="cov0" title="0">{
         <span class="cov0" title="0">e.POST("/tax/calculations", handler.CalculateTaxHandler)
         e.POST("/tax/calculations/upload-csv", handler.CalculateTaxCSVHandler)
         admin.POST("/deductions/personal", handler.SettingPersonalDeductionHandler)
+        admin.POST("/deductions/k-receipt", handler.SettingMaxKReceiptHandler)
 
         port := os.Getenv("PORT")
 
@@ -299,6 +300,16 @@ func (p *Postgres) getPersonalDeduction() (float64, error) <span class="cov8" ti
         }</span>
         <span class="cov8" title="1">return personalDeduction, nil</span>
 }
+
+func (p *Postgres) SettingMaxKReceipt(setting tax.Setting) (float64, error) <span class="cov8" title="1">{
+        row := p.DB.QueryRow("UPDATE deductions_setting SET amount = $1 WHERE allowance_type = $2 RETURNING amount", setting.Amount, "k-receipt")
+        var maxKReceipt float64
+        err := row.Scan(&amp;maxKReceipt)
+        if err != nil </span><span class="cov8" title="1">{
+                return 0, err
+        }</span>
+        <span class="cov8" title="1">return maxKReceipt, nil</span>
+}
 </pre>
 		
 		<pre class="file" id="file4" style="display: none">package tax
@@ -434,6 +445,7 @@ type Handler struct {
 type Storer interface {
         CalculateTax(userInfo UserInfo) (Tax, error)
         SettingPersonalDeduction(setting Setting) (float64, error)
+        SettingMaxKReceipt(setting Setting) (float64, error)
 }
 
 func New(db Storer) *Handler <span class="cov8" title="1">{
@@ -494,6 +506,32 @@ func (h *Handler) SettingPersonalDeductionHandler(c echo.Context) error <span cl
 
         <span class="cov8" title="1">response := PersonalDeductionResponse{
                 PersonalDeduction: personalDeduction,
+        }
+
+        return c.JSON(http.StatusOK, response)</span>
+}
+
+func (h *Handler) SettingMaxKReceiptHandler(c echo.Context) error <span class="cov8" title="1">{
+        var setting Setting
+        if err := c.Bind(&amp;setting); err != nil </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusBadRequest, Err{Message: "invalid request body"})
+        }</span>
+        <span class="cov8" title="1">if setting.Amount == 0.0 </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusBadRequest, Err{Message: "amount is required"})
+        }</span>
+        <span class="cov8" title="1">if setting.Amount &gt; 100000.0 </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusBadRequest, Err{Message: "max k-receipt amount must be less than or equal to 100,000.0"})
+        }</span>
+        <span class="cov8" title="1">if setting.Amount &lt; 0.0 </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusBadRequest, Err{Message: "max k-receipt amount must be greater than 0.0"})
+        }</span>
+
+        <span class="cov8" title="1">maxKReceipt, err := h.store.SettingMaxKReceipt(setting)
+        if err != nil </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusInternalServerError, Err{Message: "failed to set max k-receipt"})
+        }</span>
+        <span class="cov8" title="1">response := KReceiptResponse{
+                KReceipt: maxKReceipt,
         }
 
         return c.JSON(http.StatusOK, response)</span>

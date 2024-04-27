@@ -20,6 +20,7 @@ import (
 type StubTax struct {
 	calculateTax             Tax
 	settingPersonalDeduction float64
+	settingMaxKReceipt       float64
 	err                      error
 }
 
@@ -29,6 +30,10 @@ func (s *StubTax) CalculateTax(userInfo UserInfo) (Tax, error) {
 
 func (s *StubTax) SettingPersonalDeduction(setting Setting) (float64, error) {
 	return s.settingPersonalDeduction, s.err
+}
+
+func (s *StubTax) SettingMaxKReceipt(setting Setting) (float64, error) {
+	return s.settingMaxKReceipt, s.err
 }
 
 func TestCalculateTax(t *testing.T) {
@@ -540,5 +545,126 @@ func TestCalculateTaxCSVHandler(t *testing.T) {
 		assert.NoError(t, err, "expected no error but got %v", err)
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
 		assert.Equal(t, `{"message":"total income must be greater than 0.0"}`, strings.TrimSuffix(rec.Body.String(), "\n"))
+	})
+}
+
+func TestSettingMaxKReceipt(t *testing.T) {
+	t.Run("given user unable to set max k-receipt should return status 500 and error message", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/k-receipt", io.NopCloser(strings.NewReader(`{"amount": 70000.0}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/k-receipt")
+
+		want := `{ "message": "failed to set max k-receipt" }`
+
+		stubTax := StubTax{err: errors.New("failed to set max k-receipt")}
+		p := New(&stubTax)
+
+		err := p.SettingMaxKReceiptHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusInternalServerError, rec.Code, "expected status code %d but got %d", http.StatusInternalServerError, rec.Code)
+		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
+	})
+	t.Run("given admin able to set max k-receipt should return status 200 and max k-receipt", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/k-receipt", io.NopCloser(strings.NewReader(`{"amount": 70000.0}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/k-receipt")
+
+		want := KReceiptResponse{KReceipt: 70000.0}
+
+		stubTax := StubTax{settingMaxKReceipt: 70000.0}
+		p := New(&stubTax)
+
+		err := p.SettingMaxKReceiptHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusOK, rec.Code, "expected status code %d but got %d", http.StatusOK, rec.Code)
+
+		var got KReceiptResponse
+		err = json.Unmarshal(rec.Body.Bytes(), &got)
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, want, got, "expected max k-receipt %v but got %v", want, got)
+	})
+	t.Run("given missing max k-receipt amount should return status 400 and error message", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/k-receipt", io.NopCloser(strings.NewReader(`{}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/k-receipt")
+
+		want := `{ "message": "amount is required" }`
+
+		stubTax := StubTax{}
+		p := New(&stubTax)
+
+		err := p.SettingMaxKReceiptHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
+		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
+	})
+	t.Run("given max k-receipt amount less than 0 should return status 400 and error message", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/k-receipt", io.NopCloser(strings.NewReader(`{"amount": -1000.0}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/k-receipt")
+
+		want := `{ "message": "max k-receipt amount must be greater than 0.0" }`
+
+		stubTax := StubTax{}
+		p := New(&stubTax)
+
+		err := p.SettingMaxKReceiptHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
+		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
+	})
+	t.Run("given max k-receipt amount greater than 100,000 should return status 400 and error message", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/k-receipt", io.NopCloser(strings.NewReader(`{"amount": 150000.0}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/k-receipt")
+
+		want := `{ "message": "max k-receipt amount must be less than or equal to 100,000.0" }`
+
+		stubTax := StubTax{}
+		p := New(&stubTax)
+
+		err := p.SettingMaxKReceiptHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
+		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
+	})
+	t.Run("given invalid request body should return status 400 and error message", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/admin/deductions/k-receipt", io.NopCloser(strings.NewReader(`{"amount": "abc"}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/admin/deductions/k-receipt")
+
+		want := `{ "message": "invalid request body" }`
+
+		stubTax := StubTax{}
+		p := New(&stubTax)
+
+		err := p.SettingMaxKReceiptHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
+		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
 	})
 }

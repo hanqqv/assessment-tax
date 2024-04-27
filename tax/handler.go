@@ -13,6 +13,7 @@ type Handler struct {
 type Storer interface {
 	CalculateTax(userInfo UserInfo) (Tax, error)
 	SettingPersonalDeduction(setting Setting) (float64, error)
+	SettingMaxKReceipt(setting Setting) (float64, error)
 }
 
 func New(db Storer) *Handler {
@@ -73,6 +74,32 @@ func (h *Handler) SettingPersonalDeductionHandler(c echo.Context) error {
 
 	response := PersonalDeductionResponse{
 		PersonalDeduction: personalDeduction,
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+func (h *Handler) SettingMaxKReceiptHandler(c echo.Context) error {
+	var setting Setting
+	if err := c.Bind(&setting); err != nil {
+		return c.JSON(http.StatusBadRequest, Err{Message: "invalid request body"})
+	}
+	if setting.Amount == 0.0 {
+		return c.JSON(http.StatusBadRequest, Err{Message: "amount is required"})
+	}
+	if setting.Amount > 100000.0 {
+		return c.JSON(http.StatusBadRequest, Err{Message: "max k-receipt amount must be less than or equal to 100,000.0"})
+	}
+	if setting.Amount < 0.0 {
+		return c.JSON(http.StatusBadRequest, Err{Message: "max k-receipt amount must be greater than 0.0"})
+	}
+
+	maxKReceipt, err := h.store.SettingMaxKReceipt(setting)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, Err{Message: "failed to set max k-receipt"})
+	}
+	response := KReceiptResponse{
+		KReceipt: maxKReceipt,
 	}
 
 	return c.JSON(http.StatusOK, response)

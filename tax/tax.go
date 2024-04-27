@@ -30,6 +30,10 @@ type PersonalDeductionResponse struct {
 	PersonalDeduction float64 `json:"personalDeduction"`
 }
 
+type KReceiptResponse struct {
+	KReceipt float64 `json:"kReceipt"`
+}
+
 type TaxResponseCSV struct {
 	TotalIncome float64 `json:"totalIncome"`
 	Tax         float64 `json:"tax"`
