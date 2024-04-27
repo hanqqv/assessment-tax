@@ -1,4 +1,4 @@
-CREATE TYPE allowance_type AS ENUM ('personal');
+CREATE TYPE allowance_type AS ENUM ('personal', 'k-receipt');
 
 CREATE TABLE IF NOT EXISTS deductions_setting (
     id SERIAL PRIMARY KEY,
@@ -8,4 +8,5 @@ CREATE TABLE IF NOT EXISTS deductions_setting (
 );
 
 INSERT INTO deductions_setting (allowance_type, amount) VALUES 
-('personal', 60000.00);
+('personal', 60000.00),
+('k-receipt', 50000.00);
