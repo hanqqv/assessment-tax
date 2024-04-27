@@ -6,9 +6,8 @@ import (
 	"github.com/hanqqv/assessment-tax/tax"
 )
 
-func calculate(userInfo tax.UserInfo, personalDeduction float64) (tax.Tax, error) {
+func calculate(userInfo tax.UserInfo, personalDeduction float64, maxKReceipt float64) (tax.Tax, error) {
 	var taxAmount float64
-	maxKreceipt := 50000.0
 	netAmount := userInfo.TotalIncome - personalDeduction
 	defaultTaxLevels := []tax.TaxLevel{
 		{Level: "0-150,000", Tax: 0.0},
@@ -22,8 +21,8 @@ func calculate(userInfo tax.UserInfo, personalDeduction float64) (tax.Tax, error
 		if allowance.AllowanceType == "donation" && allowance.Amount > 100000.0 {
 			allowance.Amount = 100000.0
 		}
-		if allowance.AllowanceType == "k-receipt" && allowance.Amount > maxKreceipt {
-			allowance.Amount = maxKreceipt
+		if allowance.AllowanceType == "k-receipt" && allowance.Amount > maxKReceipt {
+			allowance.Amount = maxKReceipt
 		}
 		netAmount -= allowance.Amount
 	}
