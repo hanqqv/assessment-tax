@@ -55,3 +55,17 @@ func (h *Handler) validationPersonalDeductionSetting(setting Setting) Err {
 
 	return Err{}
 }
+
+func (h *Handler) validationMaxKReceiptSetting(setting Setting) Err {
+	if setting.Amount == 0.0 {
+		return Err{Message: "amount is required"}
+	}
+	if setting.Amount < 0.0 {
+		return Err{Message: "max k-receipt amount must be greater than 0.0"}
+	}
+	if setting.Amount > 100000.0 {
+		return Err{Message: "max k-receipt amount must be less than or equal to 100,000.0"}
+	}
+
+	return Err{}
+}

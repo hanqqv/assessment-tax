@@ -32,6 +32,10 @@ func TestCalculateTax(t *testing.T) {
 			WithArgs("personal").
 			WillReturnError(errors.New("mock error"))
 
+		mock.ExpectQuery("SELECT amount FROM deductions_setting WHERE allowance_type = \\$1").
+			WithArgs("k-receipt").
+			WillReturnError(errors.New("mock error"))
+
 		userInfo := tax.UserInfo{
 			TotalIncome: 600000.0,
 			Allowances:  []tax.Allowances{},
@@ -40,6 +44,7 @@ func TestCalculateTax(t *testing.T) {
 
 		_, err = p.CalculateTax(userInfo)
 		assert.Error(t, err, "CalculateTax should return an error")
+		assert.Equal(t, "mock error", err.Error(), "CalculateTax returned an incorrect error")
 	})
 	t.Run("CalculateTax Success", func(t *testing.T) {
 		db, mock, err := sqlmock.New()
@@ -63,6 +68,10 @@ func TestCalculateTax(t *testing.T) {
 			WithArgs("personal").
 			WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(50000.0))
 
+		mock.ExpectQuery("SELECT amount FROM deductions_setting WHERE allowance_type = \\$1").
+			WithArgs("k-receipt").
+			WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(50000.0))
+
 		userInfo := tax.UserInfo{
 			TotalIncome: 600000.0,
 			Allowances:  []tax.Allowances{},
@@ -72,13 +81,6 @@ func TestCalculateTax(t *testing.T) {
 		gotTax, err := p.CalculateTax(userInfo)
 		assert.NoError(t, err, "CalculateTax returned an error: %v", err)
 		assert.Equal(t, wantTax, gotTax, "CalculateTax returned incorrect tax: got %v want %v", gotTax, wantTax)
-
-		for i, v := range gotTax.TaxLevel {
-			if v != wantTax.TaxLevel[i] {
-				t.Errorf("CalculateTax returned incorrect tax level: got %v want %v",
-					v, wantTax.TaxLevel[i])
-			}
-		}
 	})
 }
 func TestGetPersonalDeduction(t *testing.T) {
@@ -148,5 +150,74 @@ func TestSettingPersonalDeduction(t *testing.T) {
 		setting := tax.Setting{Amount: 5000.0}
 		_, gotErr := p.SettingPersonalDeduction(setting)
 		assert.Error(t, gotErr, "SettingPersonalDeduction did not return an error")
+	})
+}
+func TestSettingMaxKReceipt(t *testing.T) {
+	t.Run("Given k-receipt amount to update SettingMaxKReceipt Success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		assert.NoError(t, err, "an error was not expected when opening a stub database connection")
+		defer db.Close()
+
+		p := &Postgres{DB: db}
+
+		expectedMaxKReceipt := 100000.0
+
+		mock.ExpectQuery("UPDATE deductions_setting SET amount = \\$1 WHERE allowance_type = \\$2 RETURNING amount").
+			WithArgs(100000.0, "k-receipt").
+			WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(expectedMaxKReceipt))
+
+		setting := tax.Setting{Amount: 100000.0}
+		maxKReceipt, err := p.SettingMaxKReceipt(setting)
+
+		assert.NoError(t, err, "SettingMaxKReceipt returned an error: %v", err)
+		assert.Equal(t, expectedMaxKReceipt, maxKReceipt, "SettingMaxKReceipt returned incorrect max k-receipt: got %v want %v", maxKReceipt, expectedMaxKReceipt)
+	})
+	t.Run("Given k-receipt amount to update SettingMaxKReceipt Error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		assert.NoError(t, err, "an error was not expected when opening a stub database connection")
+		defer db.Close()
+
+		p := &Postgres{DB: db}
+
+		mock.ExpectQuery("UPDATE deductions_setting SET amount = \\$1 WHERE allowance_type = \\$2 RETURNING amount").
+			WithArgs(5000.0, "k-receipt").
+			WillReturnError(err)
+
+		setting := tax.Setting{Amount: 5000.0}
+		_, gotErr := p.SettingMaxKReceipt(setting)
+		assert.Error(t, gotErr, "SettingMaxKReceipt did not return an error")
+	})
+}
+func TestGetMaxKReceipt(t *testing.T) {
+	t.Run("GetMaxKReceipt Success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		assert.NoError(t, err, "an error was not expected when opening a stub database connection")
+		defer db.Close()
+
+		p := &Postgres{DB: db}
+
+		wantMaxKReceipt := 40000.0
+		mock.ExpectQuery("SELECT amount FROM deductions_setting WHERE allowance_type = \\$1").
+			WithArgs("k-receipt").
+			WillReturnRows(sqlmock.NewRows([]string{"amount"}).AddRow(wantMaxKReceipt))
+
+		gotMaxKReceipt, err := p.getMaxKReceipt()
+
+		assert.NoError(t, err, "GetMaxKReceipt returned an error: %v", err)
+		assert.Equal(t, wantMaxKReceipt, gotMaxKReceipt, "GetMaxKReceipt returned incorrect max k-receipt: got %v want %v", gotMaxKReceipt, wantMaxKReceipt)
+	})
+	t.Run("GetMaxKReceipt Error", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		assert.NoError(t, err, "an error was not expected when opening a stub database connection")
+		defer db.Close()
+
+		p := &Postgres{DB: db}
+
+		mock.ExpectQuery("SELECT amount FROM deductions_setting WHERE allowance_type = \\$1").
+			WithArgs("k-receipt").
+			WillReturnError(err)
+
+		_, gotErr := p.getMaxKReceipt()
+		assert.Error(t, gotErr, "GetMaxKReceipt did not return an error")
 	})
 }
