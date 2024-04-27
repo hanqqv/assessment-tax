@@ -31,3 +31,13 @@ func (p *Postgres) getPersonalDeduction() (float64, error) {
 	}
 	return personalDeduction, nil
 }
+
+func (p *Postgres) SettingMaxKReceipt(setting tax.Setting) (float64, error) {
+	row := p.DB.QueryRow("UPDATE deductions_setting SET amount = $1 WHERE allowance_type = $2 RETURNING amount", setting.Amount, "k-receipt")
+	var maxKReceipt float64
+	err := row.Scan(&maxKReceipt)
+	if err != nil {
+		return 0, err
+	}
+	return maxKReceipt, nil
+}
