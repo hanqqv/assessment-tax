@@ -61,7 +61,7 @@
 				
 				<option value="file2">github.com/hanqqv/assessment-tax/postgres/postgres.go (0.0%)</option>
 				
-				<option value="file3">github.com/hanqqv/assessment-tax/postgres/tax.go (100.0%)</option>
+				<option value="file3">github.com/hanqqv/assessment-tax/postgres/tax.go (96.8%)</option>
 				
 				<option value="file4">github.com/hanqqv/assessment-tax/tax/csv_processor.go (91.5%)</option>
 				
@@ -156,9 +156,8 @@ import (
         "github.com/hanqqv/assessment-tax/tax"
 )
 
-func calculate(userInfo tax.UserInfo, personalDeduction float64) (tax.Tax, error) <span class="cov8" title="1">{
+func calculate(userInfo tax.UserInfo, personalDeduction float64, maxKReceipt float64) (tax.Tax, error) <span class="cov8" title="1">{
         var taxAmount float64
-        maxKreceipt := 50000.0
         netAmount := userInfo.TotalIncome - personalDeduction
         defaultTaxLevels := []tax.TaxLevel{
                 {Level: "0-150,000", Tax: 0.0},
@@ -172,8 +171,8 @@ func calculate(userInfo tax.UserInfo, personalDeduction float64) (tax.Tax, error
                 if allowance.AllowanceType == "donation" &amp;&amp; allowance.Amount &gt; 100000.0 </span><span class="cov8" title="1">{
                         allowance.Amount = 100000.0
                 }</span>
-                <span class="cov8" title="1">if allowance.AllowanceType == "k-receipt" &amp;&amp; allowance.Amount &gt; maxKreceipt </span><span class="cov8" title="1">{
-                        allowance.Amount = maxKreceipt
+                <span class="cov8" title="1">if allowance.AllowanceType == "k-receipt" &amp;&amp; allowance.Amount &gt; maxKReceipt </span><span class="cov8" title="1">{
+                        allowance.Amount = maxKReceipt
                 }</span>
                 <span class="cov8" title="1">netAmount -= allowance.Amount</span>
         }
@@ -278,7 +277,13 @@ func (p *Postgres) CalculateTax(userInfo tax.UserInfo) (tax.Tax, error) <span cl
         if err != nil </span><span class="cov8" title="1">{
                 return tax.Tax{}, err
         }</span>
-        <span class="cov8" title="1">return calculate(userInfo, personalDeduction)</span>
+
+        <span class="cov8" title="1">maxKReceipt, err := p.getMaxKReceipt()
+        if err != nil </span><span class="cov0" title="0">{
+                return tax.Tax{}, err
+        }</span>
+
+        <span class="cov8" title="1">return calculate(userInfo, personalDeduction, maxKReceipt)</span>
 }
 
 func (p *Postgres) SettingPersonalDeduction(setting tax.Setting) (float64, error) <span class="cov8" title="1">{
@@ -303,6 +308,16 @@ func (p *Postgres) getPersonalDeduction() (float64, error) <span class="cov8" ti
 
 func (p *Postgres) SettingMaxKReceipt(setting tax.Setting) (float64, error) <span class="cov8" title="1">{
         row := p.DB.QueryRow("UPDATE deductions_setting SET amount = $1 WHERE allowance_type = $2 RETURNING amount", setting.Amount, "k-receipt")
+        var maxKReceipt float64
+        err := row.Scan(&amp;maxKReceipt)
+        if err != nil </span><span class="cov8" title="1">{
+                return 0, err
+        }</span>
+        <span class="cov8" title="1">return maxKReceipt, nil</span>
+}
+
+func (p *Postgres) getMaxKReceipt() (float64, error) <span class="cov8" title="1">{
+        row := p.DB.QueryRow("SELECT amount FROM deductions_setting WHERE allowance_type = $1", "k-receipt")
         var maxKReceipt float64
         err := row.Scan(&amp;maxKReceipt)
         if err != nil </span><span class="cov8" title="1">{
@@ -516,14 +531,9 @@ func (h *Handler) SettingMaxKReceiptHandler(c echo.Context) error <span class="c
         if err := c.Bind(&amp;setting); err != nil </span><span class="cov8" title="1">{
                 return c.JSON(http.StatusBadRequest, Err{Message: "invalid request body"})
         }</span>
-        <span class="cov8" title="1">if setting.Amount == 0.0 </span><span class="cov8" title="1">{
-                return c.JSON(http.StatusBadRequest, Err{Message: "amount is required"})
-        }</span>
-        <span class="cov8" title="1">if setting.Amount &gt; 100000.0 </span><span class="cov8" title="1">{
-                return c.JSON(http.StatusBadRequest, Err{Message: "max k-receipt amount must be less than or equal to 100,000.0"})
-        }</span>
-        <span class="cov8" title="1">if setting.Amount &lt; 0.0 </span><span class="cov8" title="1">{
-                return c.JSON(http.StatusBadRequest, Err{Message: "max k-receipt amount must be greater than 0.0"})
+
+        <span class="cov8" title="1">if err := h.validationMaxKReceiptSetting(setting); err.Message != "" </span><span class="cov8" title="1">{
+                return c.JSON(http.StatusBadRequest, err)
         }</span>
 
         <span class="cov8" title="1">maxKReceipt, err := h.store.SettingMaxKReceipt(setting)
@@ -604,6 +614,20 @@ func (h *Handler) validationPersonalDeductionSetting(setting Setting) Err <span 
         }</span>
         <span class="cov8" title="1">if setting.Amount &gt; 100000.0 </span><span class="cov8" title="1">{
                 return Err{Message: "personal deduction amount must be less than or equal to 100,000.0"}
+        }</span>
+
+        <span class="cov8" title="1">return Err{}</span>
+}
+
+func (h *Handler) validationMaxKReceiptSetting(setting Setting) Err <span class="cov8" title="1">{
+        if setting.Amount == 0.0 </span><span class="cov8" title="1">{
+                return Err{Message: "amount is required"}
+        }</span>
+        <span class="cov8" title="1">if setting.Amount &lt; 0.0 </span><span class="cov8" title="1">{
+                return Err{Message: "max k-receipt amount must be greater than 0.0"}
+        }</span>
+        <span class="cov8" title="1">if setting.Amount &gt; 100000.0 </span><span class="cov8" title="1">{
+                return Err{Message: "max k-receipt amount must be less than or equal to 100,000.0"}
         }</span>
 
         <span class="cov8" title="1">return Err{}</span>
