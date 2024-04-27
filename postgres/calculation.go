@@ -8,6 +8,7 @@ import (
 
 func calculate(userInfo tax.UserInfo, personalDeduction float64) (tax.Tax, error) {
 	var taxAmount float64
+	maxKreceipt := 50000.0
 	netAmount := userInfo.TotalIncome - personalDeduction
 	defaultTaxLevels := []tax.TaxLevel{
 		{Level: "0-150,000", Tax: 0.0},
@@ -20,6 +21,9 @@ func calculate(userInfo tax.UserInfo, personalDeduction float64) (tax.Tax, error
 	for _, allowance := range userInfo.Allowances {
 		if allowance.AllowanceType == "donation" && allowance.Amount > 100000.0 {
 			allowance.Amount = 100000.0
+		}
+		if allowance.AllowanceType == "k-receipt" && allowance.Amount > maxKreceipt {
+			allowance.Amount = maxKreceipt
 		}
 		netAmount -= allowance.Amount
 	}
