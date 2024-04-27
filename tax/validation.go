@@ -17,6 +17,9 @@ func (h *Handler) validationUserInfo(userInfo UserInfo) Err {
 		if allowance.AllowanceType == "" {
 			return Err{Message: "missing allowanceType key"}
 		}
+		if allowance.AllowanceType == "k-receipt" && allowance.Amount < 0.0 {
+			return Err{Message: "k-receipt amount must be greater than or equal to 0.0"}
+		}
 		if allowance.Amount < 0.0 {
 			return Err{Message: "allowance amount must be greater than or equal to 0.0"}
 		}

@@ -268,6 +268,25 @@ func TestCalculateTax(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
 		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
 	})
+	t.Run("given k-receipt amount less than 0 should return status 400 and error message", func(t *testing.T) {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPost, "/tax/calculations", io.NopCloser(strings.NewReader(`{"totalIncome": 5000000.0, "wht": 0.0, "allowances": [{"allowanceType": "k-receipt", "amount": -1000.0}]}`)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetPath("/tax/calculations")
+
+		want := `{ "message": "k-receipt amount must be greater than or equal to 0.0" }`
+
+		stubTax := StubTax{}
+		p := New(&stubTax)
+
+		err := p.CalculateTaxHandler(c)
+
+		assert.NoError(t, err, "expected no error but got %v", err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "expected status code %d but got %d", http.StatusBadRequest, rec.Code)
+		assert.JSONEq(t, want, rec.Body.String(), "expected response body %s but got %s", want, rec.Body.String())
+	})
 }
 func TestSettingPersonalDeduction(t *testing.T) {
 	t.Run("given user unable to set personal deduction should return status 500 and error message", func(t *testing.T) {
