@@ -84,14 +84,9 @@ func (h *Handler) SettingMaxKReceiptHandler(c echo.Context) error {
 	if err := c.Bind(&setting); err != nil {
 		return c.JSON(http.StatusBadRequest, Err{Message: "invalid request body"})
 	}
-	if setting.Amount == 0.0 {
-		return c.JSON(http.StatusBadRequest, Err{Message: "amount is required"})
-	}
-	if setting.Amount > 100000.0 {
-		return c.JSON(http.StatusBadRequest, Err{Message: "max k-receipt amount must be less than or equal to 100,000.0"})
-	}
-	if setting.Amount < 0.0 {
-		return c.JSON(http.StatusBadRequest, Err{Message: "max k-receipt amount must be greater than 0.0"})
+
+	if err := h.validationMaxKReceiptSetting(setting); err.Message != "" {
+		return c.JSON(http.StatusBadRequest, err)
 	}
 
 	maxKReceipt, err := h.store.SettingMaxKReceipt(setting)
